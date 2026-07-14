@@ -145,19 +145,42 @@ def update_inventory_stock(sheet, item_name, qty_change, cost=0):
         logger.error(f"Stock Error: {e}")
     return resolved_name
 
-def update_staff_status(sheet, staff_name, status):
+def update_staff_status(sheet, staff_name, status, role="General Staff"):
     try:
-        ws = sheet.worksheet("Staff")
+        # 1. Self-Healing DB: Generate with 6 columns to prevent Scheduler crash
+        try:
+            ws = sheet.worksheet("Staff")
+        except gspread.exceptions.WorksheetNotFound:
+            logger.info("🛠️ 'Staff' worksheet missing. Auto-generating it...")
+            ws = sheet.add_worksheet(title="Staff", rows="100", cols="6")
+            ws.append_row(["Name", "Role", "Shift", "Status", "Last Active", "Alert_Timestamp"])
+
         rows = ws.get_all_values()
+        
+        # 2. Try to update or remove existing staff
         for i, row in enumerate(rows[1:]):
             if len(row) > 0 and staff_name.lower() in str(row[0]).lower():
                 row_idx = i + 2
-                ws.update_cell(row_idx, 4, status)
-                return f"✅ Marked {row[0]} as {status}"
-        return f"⚠️ Staff member '{staff_name}' not found."
+                
+                if status == "Removed":
+                    ws.delete_rows(row_idx)
+                    return f"🗑️ Removed {row[0]} from the staff roster."
+                else:
+                    ws.update_cell(row_idx, 4, status) # Update Status
+                    if role and role != "General Staff":
+                        ws.update_cell(row_idx, 2, role) # Update Role if changed
+                    return f"✅ Marked {row[0]} as {status}"
+                
+        # 3. If not found, add them as a new hire!
+        if status != "Removed":
+            ws.append_row([staff_name, role, "Day", status])
+            return f"👋 Welcome to the team! Added {staff_name} as {role}."
+        else:
+            return f"⚠️ Could not find {staff_name} to remove."
+        
     except Exception as e:
         logger.error(f"Staff Update Error: {e}")
-        return "❌ Staff Update Failed"
+        return "❌ Staff Update Failed."
 
 # --- ROUTES ---
 
@@ -253,20 +276,26 @@ async def reply_whatsapp(request: Request):
     if not client: return str(MessagingResponse().message("⚠️ Session Expired. Log in again."))
 
     try:
+        # UPGRADE: AI now returns a LIST of JSON objects to handle multiple commands at once.
         prompt_text = f"""
         Analyze this business message (or image).
-        Return STRICT JSON (no markdown): 
-        {{
-          "action": "SALE" | "RESTOCK" | "EXPENSE" | "STAFF", 
-          "item": "Name", "qty": Integer, "price": Float, 
-          "party": "Name", "mode": "CASH" | "UPI" | "UDHAR", 
-          "staff_name": "Name", "staff_status": "Present" | "Absent",
-          "reply": "Friendly confirmation"
-        }}
+        Return STRICT JSON as an ARRAY of objects (no markdown, just the array brackets []): 
+        [
+          {{
+            "action": "SALE" | "RESTOCK" | "EXPENSE" | "STAFF" | "PAYMENT", 
+            "item": "Name", "qty": Integer, "price": Float, 
+            "party": "Name", "mode": "CASH" | "UPI" | "UDHAR", 
+            "staff_name": "Name", "staff_role": "Role (e.g. Delivery boy, Manager)", "staff_status": "Present" | "Absent" | "Removed",
+            "reply": "Friendly confirmation"
+          }}
+        ]
         Context:
         - Message Text: "{body}"
         - "becha udhar pe" -> action: SALE, mode: UDHAR
+        - "paid his khata", "cleared dues" -> action: PAYMENT
+        - "left his job", "fire him", "remove him" -> action: STAFF, staff_status: "Removed"
         - Bill Image -> Extract total items and sum.
+        - IF MULTIPLE ACTIONS OR PEOPLE ARE MENTIONED (e.g., "A and B paid"), output MULTIPLE objects in the array.
         """
 
         content_inputs = [prompt_text]
@@ -288,34 +317,80 @@ async def reply_whatsapp(request: Request):
 
         response = model.generate_content(content_inputs)
         cleaned_text = clean_json_string(response.text)
-        data = json.loads(cleaned_text)
-
-        qty = int(data.get('qty') or 1)
-        price = float(data.get('price') or 0.0)
-        item = data.get('item') or "Unknown Item"
+        
+        # Parse the JSON Array
+        data_list = json.loads(cleaned_text)
+        
+        # Fallback: If AI returned a single dict instead of a list, wrap it in a list
+        if isinstance(data_list, dict):
+            data_list = [data_list]
 
         sheet = client.open_by_key(user['sheet_id']) if user['sheet_id'] else client.open("OpsAgent_DB_v1")
-        action = data.get('action')
+        
+        # We will store all our text replies here instead of returning immediately
+        reply_messages = []
 
-        if action == "SALE":
-            final_name = update_inventory_stock(sheet, item, -qty)
-            sheet.worksheet("Sales").append_row([
-                final_name, qty, price, str(datetime.now().date()), data.get('mode'), data.get('party', 'Walk-in')
-            ])
-            if data.get('mode') == "UDHAR":
-                sheet.worksheet("Khata").append_row([
-                    data.get('party', 'Guest'), price, item, str(datetime.now().date()), "Pending", ""
+        # UPGRADE: Loop through every action the AI found in the message
+        for data in data_list:
+            action = data.get('action')
+            qty = int(data.get('qty') or 1)
+            price = float(data.get('price') or 0.0)
+            item = data.get('item') or "Unknown Item"
+
+            if action == "SALE":
+                final_name = update_inventory_stock(sheet, item, -qty)
+                sheet.worksheet("Sales").append_row([
+                    final_name, qty, price, str(datetime.now().date()), data.get('mode', 'CASH'), data.get('party', 'Walk-in')
                 ])
+                if data.get('mode') == "UDHAR":
+                    sheet.worksheet("Khata").append_row([
+                        data.get('party', 'Guest'), price, item, str(datetime.now().date()), "Pending", ""
+                    ])
+                reply_messages.append(data.get('reply', f'Sale processed for {item}!'))
 
-        elif action == "STAFF":
-            msg = update_staff_status(sheet, data.get('staff_name'), data.get('staff_status'))
-            return str(MessagingResponse().message(msg))
+            elif action == "EXPENSE":
+                try:
+                    sheet.worksheet("Ledger").append_row([
+                        data.get('item', 'Misc Expense'), price, str(datetime.now().date()), "Expense"
+                    ])
+                    reply_messages.append(data.get('reply', 'Expense logged!'))
+                except Exception as e:
+                    logger.error(f"Failed to log expense: {e}")
 
-        elif action == "RESTOCK":
-            final_name = update_inventory_stock(sheet, item, qty, price)
-            sheet.worksheet("Ledger").append_row([f"Restock: {final_name}", price, str(datetime.now().date()), "Inventory"])
+            elif action == "RESTOCK":
+                final_name = update_inventory_stock(sheet, item, qty, price)
+                sheet.worksheet("Ledger").append_row([
+                    f"Restock: {final_name}", price, str(datetime.now().date()), "Inventory"
+                ])
+                reply_messages.append(data.get('reply', 'Restock processed!'))
 
-        return str(MessagingResponse().message(data.get('reply', 'Processed!')))
+            elif action == "STAFF":
+                # Pass the role from the AI, default to General Staff
+                msg = update_staff_status(sheet, data.get('staff_name'), data.get('staff_status'), data.get('staff_role', 'General Staff'))
+                reply_messages.append(msg)
+
+            elif action == "PAYMENT":
+                try:
+                    ws = sheet.worksheet("Khata")
+                    rows = ws.get_all_values()
+                    party_name = data.get('party', '').lower()
+                    updated = False
+                    for i, row in enumerate(rows[1:]):
+                        if len(row) > 0 and party_name in str(row[0]).lower() and row[4] == "Pending":
+                            ws.update_cell(i + 2, 5, "Paid")
+                            updated = True
+                            break
+                    if updated:
+                        reply_messages.append(f"✅ Awesome! Marked {data.get('party')} Khata as Paid.")
+                    else:
+                        reply_messages.append(f"⚠️ Couldn't find a pending Khata for {data.get('party')}.")
+                except Exception as e:
+                    logger.error(f"Khata Payment Error: {e}")
+                    reply_messages.append("❌ Error updating Khata.")
+
+        # Combine all replies into one single WhatsApp message
+        final_reply = "\n".join(reply_messages)
+        return str(MessagingResponse().message(final_reply))
 
     except Exception as e:
         logger.error(f"Processing Error: {e}")
