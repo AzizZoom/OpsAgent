@@ -52,15 +52,10 @@ def setup_ai():
 
     # THE KITCHEN SINK LIST: Tests every possible valid model name
     candidates = [
-        "models/gemini-1.5-flash",
-        "models/gemini-1.5-flash-001",     # Specific version
-        "models/gemini-1.5-flash-latest",
-        "models/gemini-1.5-flash-8b",      # High speed version
-        "models/gemini-1.5-pro",
-        "models/gemini-1.5-pro-001",       # Specific version
-        "models/gemini-1.0-pro",           # Stable previous gen
-        "models/gemini-pro",               # Legacy alias
-        "models/gemini-pro-vision"         # Legacy vision
+        "models/gemini-2.5-flash",         # Current recommended fast model
+        "models/gemini-2.0-flash",         # Highly efficient stable model
+        "models/gemini-1.5-flash",         # Legacy fallback
+        "models/gemini-3.1-flash-lite",    # Next-gen lightweight preview
     ]
 
     print("\n🤖 OpsAgent AI Auto-Discovery...")
