@@ -186,7 +186,7 @@ def update_staff_status(sheet, staff_name, status, role="General Staff"):
 
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
-    return templates.TemplateResponse("index.html", {"request": request})
+    return templates.TemplateResponse(request=request, name="index.html")
 
 @app.get("/login")
 async def login(request: Request):
