@@ -196,6 +196,7 @@ async def login(request: Request):
     flow = Flow.from_client_secrets_file(CLIENT_SECRETS_FILE, scopes=SCOPES, redirect_uri=redirect_uri)
     url, state = flow.authorization_url(access_type='offline', prompt='consent')
     request.session['state'] = state
+    request.session['code_verifier'] = flow.code_verifier
     request.session['redirect_uri'] = redirect_uri
     return RedirectResponse(url)
 
@@ -207,6 +208,7 @@ async def callback(request: Request):
 
     try:
         flow = Flow.from_client_secrets_file(CLIENT_SECRETS_FILE, scopes=SCOPES, state=state, redirect_uri=redirect_uri)
+        flow.code_verifier = request.session.get('code_verifier')
         flow.fetch_token(authorization_response=str(request.url))
         session = flow.authorized_session()
 
