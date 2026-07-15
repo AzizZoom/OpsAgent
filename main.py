@@ -259,7 +259,7 @@ async def save_phone(request: Request):
         if not clean_phone.startswith("+"):
             clean_phone = "+91" + clean_phone if len(clean_phone) == 10 else "+" + clean_phone
         database.link_phone(email, clean_phone)
-        return RedirectResponse(f"http://localhost:8501/?email={email}", status_code=303)
+        return RedirectResponse(f"https://opsagent-bsrt3dqbkbungnw49v4ntd.streamlit.app/?email={email}", status_code=303)
     return RedirectResponse("/", status_code=303)
 
 @app.post("/whatsapp")
