@@ -30,3 +30,6 @@ plotly
 # --- Utils ---
 pyngrok
 watchdog
+
+# --- Database ---
+pymongo[srv]
