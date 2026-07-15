@@ -28,7 +28,7 @@ load_dotenv()
 os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
 
 # Initialize DB
-database.init_db()
+# database.init_db()
 
 try:
     from thefuzz import process
