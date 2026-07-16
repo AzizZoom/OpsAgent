@@ -264,6 +264,12 @@ async def save_phone(request: Request):
 
 @app.post("/whatsapp")
 async def reply_whatsapp(request: Request):
+    # 🌟 HELPER FUNCTION: Generates perfect Twilio XML every time
+    def send_twiml(text):
+        resp = MessagingResponse()
+        resp.message(text)
+        return Response(content=str(resp), media_type="application/xml")
+
     form = await request.form()
     sender = form.get("From", "").replace("whatsapp:", "")
     body = form.get("Body", "")
@@ -273,11 +279,11 @@ async def reply_whatsapp(request: Request):
 
     user = database.get_user_by_phone(sender)
     if not user: 
-        return Response(content=str(MessagingResponse().message("❌ Number not registered. Please Login.")), media_type="application/xml")
+        return send_twiml("❌ Number not registered. Please Login.")
 
     client = get_user_client(user['creds_json'])
     if not client: 
-        return Response(content=str(MessagingResponse().message("⚠️ Session Expired. Log in again.")), media_type="application/xml")
+        return send_twiml("⚠️ Session Expired. Log in again.")
 
     try:
         # UPGRADE: AI now returns a LIST of JSON objects to handle multiple commands at once.
@@ -316,7 +322,7 @@ async def reply_whatsapp(request: Request):
                 content_inputs.append(image_data)
             else:
                 logger.error(f"❌ Failed to download image: {img_response.status_code}")
-                return Response(content=str(MessagingResponse().message("❌ Error downloading image.")), media_type="application/xml")
+                return send_twiml("❌ Error downloading image.")
         # -------------------------------------------
 
         response = model.generate_content(content_inputs)
@@ -395,13 +401,11 @@ async def reply_whatsapp(request: Request):
         # Combine all replies into one single WhatsApp message
         final_reply = "\n".join(reply_messages)
         
-        # 🌟 THE FINAL FIX: Wrapping the success reply in XML 🌟
-        return Response(content=str(MessagingResponse().message(final_reply)), media_type="application/xml")
+        return send_twiml(final_reply)
 
     except Exception as e:
         logger.error(f"Processing Error: {e}")
-        # 🌟 THE EXCEPTION FIX: Wrapping the crash reply in XML 🌟
-        return Response(content=str(MessagingResponse().message(f"❌ Error: {str(e)}")), media_type="application/xml")
+        return send_twiml(f"❌ Error: {str(e)}")
 
 if __name__ == "__main__":
     import uvicorn
