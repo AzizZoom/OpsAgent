@@ -4,7 +4,7 @@ import logging
 import warnings
 import requests
 import gspread
-from fastapi import FastAPI, Request, Form
+from fastapi import FastAPI, Request, Form, Response
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
@@ -272,10 +272,12 @@ async def reply_whatsapp(request: Request):
     media_url = form.get("MediaUrl0")
 
     user = database.get_user_by_phone(sender)
-    if not user: return str(MessagingResponse().message("❌ Number not registered. Please Login."))
+    if not user: 
+        return Response(content=str(MessagingResponse().message("❌ Number not registered. Please Login.")), media_type="application/xml")
 
     client = get_user_client(user['creds_json'])
-    if not client: return str(MessagingResponse().message("⚠️ Session Expired. Log in again."))
+    if not client: 
+        return Response(content=str(MessagingResponse().message("⚠️ Session Expired. Log in again.")), media_type="application/xml")
 
     try:
         # UPGRADE: AI now returns a LIST of JSON objects to handle multiple commands at once.
@@ -314,7 +316,7 @@ async def reply_whatsapp(request: Request):
                 content_inputs.append(image_data)
             else:
                 logger.error(f"❌ Failed to download image: {img_response.status_code}")
-                return str(MessagingResponse().message("❌ Error downloading image."))
+                return Response(content=str(MessagingResponse().message("❌ Error downloading image.")), media_type="application/xml")
         # -------------------------------------------
 
         response = model.generate_content(content_inputs)
@@ -392,11 +394,14 @@ async def reply_whatsapp(request: Request):
 
         # Combine all replies into one single WhatsApp message
         final_reply = "\n".join(reply_messages)
-        return str(MessagingResponse().message(final_reply))
+        
+        # 🌟 THE FINAL FIX: Wrapping the success reply in XML 🌟
+        return Response(content=str(MessagingResponse().message(final_reply)), media_type="application/xml")
 
     except Exception as e:
         logger.error(f"Processing Error: {e}")
-        return str(MessagingResponse().message(f"❌ Error: {str(e)}"))
+        # 🌟 THE EXCEPTION FIX: Wrapping the crash reply in XML 🌟
+        return Response(content=str(MessagingResponse().message(f"❌ Error: {str(e)}")), media_type="application/xml")
 
 if __name__ == "__main__":
     import uvicorn
