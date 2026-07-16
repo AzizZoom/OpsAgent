@@ -335,8 +335,20 @@ async def reply_whatsapp(request: Request):
         if isinstance(data_list, dict):
             data_list = [data_list]
 
-        sheet = client.open_by_key(user['sheet_id']) if user['sheet_id'] else client.open("OpsAgent_DB_v1")
+# 🌟 INDESTRUCTIBLE SHEET ROUTING ENGINE 🌟
+        sheet_identifier = str(user['sheet_id']).strip()
         
+        # Intelligently detect if the value is a plain text name string or a long hash key ID
+        if not sheet_identifier or sheet_identifier == "OpsAgent_DB_v1" or len(sheet_identifier) < 25:
+            logger.info("📄 Opening base Google Sheet by Title Name string: 'OpsAgent_DB_v1'")
+            sheet = client.open("OpsAgent_DB_v1")
+        else:
+            try:
+                logger.info(f"🔑 Opening Google Sheet by strict alpha-numeric key ID hash: {sheet_identifier}")
+                sheet = client.open_by_key(sheet_identifier)
+            except Exception as sheet_err:
+                logger.warning(f"⚠️ Key ID invalid or access denied ({sheet_err}). Falling back to 'OpsAgent_DB_v1' by name.")
+                sheet = client.open("OpsAgent_DB_v1")        
         # We will store all our text replies here instead of returning immediately
         reply_messages = []
 
