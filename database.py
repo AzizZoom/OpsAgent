@@ -36,11 +36,17 @@ class UserResponse(dict):
     def __getitem__(self, key):
         if isinstance(key, int):
             return self.tuple_data[key]
+        
+        # 🔗 ALIAS MAP: If main.py asks for 'creds_json', give it 'google_token'
+        if key == "creds_json":
+            return super().get("google_token", "") or super().get("creds_json", "")
+            
         if key == "sheet_id":
             val = super().get("sheet_id", "")
             if not val or "{" in str(val):
                 return "OpsAgent_DB_v1"
             return val
+            
         return super().get(key, "")
 
     def __getattr__(self, key):
