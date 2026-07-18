@@ -63,7 +63,7 @@ def setup_ai():
         try:
             print(f"   👉 Testing: {m_name}...", end=" ")
             test_model = genai.GenerativeModel(m_name)
-            test_model.generate_content("Hi")
+            # test_model.generate_content("Hi")
 
             model = test_model
             ACTIVE_MODEL_NAME = m_name

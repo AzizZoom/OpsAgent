@@ -1,63 +1,148 @@
-# ⚡ OpsAgent: The Invisible ERP
+# 📊 OpsAgent
 
-**OpsAgent** is a "Headless ERP" for modern retail. It turns **WhatsApp** into a high-powered accountant and inventory manager, allowing shopkeepers to manage sales, stock, and expenses using natural language.
+**Headless Cloud ERP & Live Analytics Platform**
 
-Powered by **Google Gemini AI**, **FastAPI**, and **Google Sheets**.
+OpsAgent is a decoupled, microservice-based Headless ERP system that bridges conversational natural language interfaces with automated small-and-medium business (SMB) operations tracking. By integrating conversational messaging with cloud ledger engines, OpsAgent completely eliminates manual data-entry overhead—allowing business owners to restock inventory, log transactions, track expenses, and view real-time operations metrics entirely through WhatsApp and an automated business dashboard.
 
-## 🚀 Features
--   **🗣️ Voice-to-Sheet:** "Sold 2 Maggi" → Updates Inventory & Sales automatically.
--   **📸 Image Scanning:** Scan bills/products to log data.
--   **📊 Live Dashboard:** Real-time revenue and stock tracking.
--   **🔔 Auto-Alerts:** WhatsApp alerts for low stock.
--   **⚡ One-Click Run:** Entire system (Backend, UI, Scheduler, Tunnel) launches with one script.
+---
+
+## 🏗️ System Architecture & Data Flow
+
+```
+📱 WhatsApp (User Input)
+       │
+       ▼
+💬 Twilio Gateway (Webhook forwarding via HTTP POST)
+       │
+       ▼
+🚀 FastAPI Backend (Render Cloud Service Container)
+       ├── 🧠 Google Gemini AI Engine (Processes text & image receipts into JSON Arrays)
+       ├── 💾 MongoDB Atlas (Authenticates profile mapping, active session keys)
+       └── 📄 Google Sheets API Ledger (Appends entries via authenticated gspread engine)
+               │
+               ▼
+📊 Streamlit Analytics Frontend (Live Visual Dashboard Loop with Auto-Refresh)
+```
+
+---
+
+## ✨ Key Features
+
+| Feature | Description |
+| --- | --- |
+| **Natural Language Command Processing** | Ingests unstructured conversational parameters (e.g., *"Bought 50 packets of chips for Rs. 1000 and sold 10 cokes for Rs. 400"*) and utilizes Google Gemini to split, clean, and map transactions simultaneously. |
+| **Multimodal Receipt Downloads** | Features an authenticated binary image fetch loop to download invoice media directly from Twilio's payload attachments for OCR parsing and automated price totals verification. |
+| **Live Real-Time Dashboards** | A lightweight, microservice-decoupled Streamlit UI tracking financial metrics, product volumes, ledger records, and customer accounts using reactive Plotly data visual components. |
+| **Persistent OAuth2 Token Syncing** | Conquers container storage constraints by mapping temporary Google access tokens straight into cloud document clusters for bulletproof automated background transactions. |
+| **TwiML Gateway Compliance** | Serves runtime requests using strict XML markup response media-types to fulfill global protocol rules across Twilio systems. |
+
+---
 
 ## 🛠️ Tech Stack
--   **AI:** Google Gemini 1.5 Flash
--   **Stack:** FastAPI (Backend) + Streamlit (Frontend) + SQLite (Auth)
--   **Data:** Google Sheets (User Database)
--   **Integrations:** Twilio (WhatsApp) + Ngrok (Tunneling)
 
-## ⚙️ Quick Start
+| Layer | Tools & Technologies |
+| --- | --- |
+| **Backend API Core** | Python, FastAPI, Uvicorn, Requests |
+| **Artificial Intelligence** | Google Generative AI (Gemini 2.5 Flash / NLP Engine), Pillow (PIL) |
+| **Communications Gateway** | Twilio Messaging API Webhooks, TwiML XML Schema |
+| **Storage & Data Management** | MongoDB Atlas Cloud Cluster (PyMongo), Google Sheets API (GSpread) |
+| **Data Visualization UI** | Streamlit, Plotly Express, Streamlit Autorefresh |
+| **Cloud Deployment Infrastructure** | Render (Web Services Hosting), Streamlit Community Cloud |
 
-### 1. Install
+---
+
+## ⚙️ Environment Variables
+
+Create a `.env` file in the root directory of your project (or load these directly inside your cloud management configuration interfaces on Render):
+
+```env
+# 🔑 Core Database & State Configurations
+MONGO_URI=mongodb+srv://<username>:<password>@cluster.mongodb.net/OpsAgentDB
+
+# 🧠 Generative AI Credentials
+GEMINI_API_KEY=AIzaSy...YourGeminiKeyHere
+
+# 💬 Twilio Gateway Authentications
+TWILIO_SID=AC...YourTwilioAccountSid
+TWILIO_AUTH=your_twilio_auth_token
+
+# 🔒 Google Cloud Platform API Access Keys
+GOOGLE_CLIENT_ID=your_gcp_client_id.apps.googleusercontent.com
+GOOGLE_CLIENT_SECRET=GOCSPX-your_gcp_client_secret
+```
+
+> **Note:** Never commit your `.env` file or real credentials to version control.
+
+---
+
+## 🚀 Quick Setup & Installation
+
+Follow these steps to configure your local execution container workspace:
+
+### 1. Clone the Workspace
+
 ```bash
-git clone [https://github.com/yourusername/opsagent.git](https://github.com/yourusername/opsagent.git)
-cd opsagent
+git clone https://github.com/AzizZoom/OpsAgent.git
+cd OpsAgent
+```
 
-# Setup Virtual Env
+### 2. Configure Virtual Environment & Dependencies
+
+```bash
 python -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
+```
 
-# Install Dependencies
+**Windows PowerShell activation:**
+
+```powershell
+.\venv\Scripts\Activate
+```
+
+**Install dependencies:**
+
+```bash
 pip install -r requirements.txt
-
 ```
 
-### 2. Configure Secrets
-Create a .env file with your keys:
+### 3. Initialize Server Systems
+
+OpsAgent uses a decoupled operational loop. For standard local sandbox development testing, execute both engines simultaneously:
+
+**Fire up the Backend Microservice Engine:**
+
 ```bash
-GOOGLE_API_KEY=your_gemini_key
-SESSION_SECRET=random_secret_string
-TWILIO_SID=your_sid
-TWILIO_AUTH=your_auth
-TWILIO_TO_NUMBER=+919999999999
-NGROK_AUTH_TOKEN=your_ngrok_token
+uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 ```
-Note: Also place your Google OAuth client_secret.json in the root folder.
 
-### 3. Run Everything 🚀
-This single script launches the Backend, Dashboard, Scheduler, and Public Tunnel automatically.
+**Launch the Interactive Live Visual Frontend Dashboard:**
+
 ```bash
-python run_system.py
+streamlit run dashboard.py
 ```
-The script will open the Dashboard and print your WhatsApp Webhook URL in the terminal.
 
-### 📱 Usage
-1. Login to the Dashboard with Google.
+---
 
-2. Link your WhatsApp number.
+## 🛰️ Core API Endpoints
 
-3. Chat with the Twilio Sandbox number to manage your shop!
+### `POST /whatsapp`
 
-### 🛡️ License
-MIT License
+The target routing engine connected to Twilio's incoming messaging webhook.
+
+| Property | Value |
+| --- | --- |
+| **Payload Format** | `application/x-www-form-urlencoded` |
+| **Response Format** | `application/xml` (Valid structural TwiML Root tags) |
+
+**Execution logic flow:**
+
+```
+Checks sender origin → Pulls unique cloud token map profiles → Transmits text to semantic parser → Appends transaction datasets cleanly across targeted spreadsheet tabs
+```
+
+### `GET /login`
+
+Initiates the centralized secure state tracking verification challenge process via standard Google Cloud Platform routing prompts.
+
+### `GET /callback`
+
+The standard cloud endpoint handling incoming auth responses, parsing callback authorization tokens, and capturing state properties to map variables safely into MongoDB document records.
