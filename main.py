@@ -53,8 +53,8 @@ def setup_ai():
     # THE KITCHEN SINK LIST: Tests every possible valid model name
     candidates = [
         # "models/gemini-2.5-flash",         # Current recommended fast model
-        # "models/gemini-2.0-flash",         # Highly efficient stable model
-        "models/gemini-1.5-flash",         # Legacy fallback
+        "models/gemini-2.0-flash",         # Highly efficient stable model
+        # "models/gemini-1.5-flash",         # Legacy fallback
         "models/gemini-3.1-flash-lite",    # Next-gen lightweight preview
     ]
 
