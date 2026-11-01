@@ -8,7 +8,7 @@ jinja2
 itsdangerous
 
 # --- AI & Logic ---
-google-generativeai
+google-generativeai>=0.8.0
 thefuzz
 python-Levenshtein
 

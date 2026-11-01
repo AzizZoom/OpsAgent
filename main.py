@@ -54,9 +54,9 @@ def setup_ai():
     candidates = [
         "models/gemini-3.8-flash",
         # "models/gemini-2.5-flash",
-        "models/gemini-2.0-flash",
-        "models/gemini-1.5-flash",
-        "models/gemini-3.1-flash-lite",
+        # "models/gemini-2.0-flash",
+        # "models/gemini-1.5-flash",
+        # "models/gemini-3.1-flash-lite",
     ]
 
     print("\n🤖 OpsAgent AI Auto-Discovery...")
