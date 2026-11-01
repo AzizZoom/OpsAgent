@@ -52,10 +52,9 @@ def setup_ai():
 
     # THE KITCHEN SINK LIST: Tests every possible valid model name
     candidates = [
-        # "models/gemini-2.5-flash",
-        "models/gemini-3.8-flash",
+        "models/gemini-2.5-flash",
         "models/gemini-2.0-flash",
-        # "models/gemini-1.5-flash",
+        "models/gemini-1.5-flash",
         "models/gemini-3.1-flash-lite",
     ]
 
