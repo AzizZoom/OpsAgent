@@ -293,24 +293,21 @@ async def reply_whatsapp(request: Request):
                 [
                 {{
                     "action": "SALE" | "RESTOCK" | "EXPENSE" | "STAFF" | "PAYMENT", 
-                    "item": "Name", "qty": Integer, "price": Float, 
+                    "item": "Name" | "ALL", "qty": Integer, "price": Float, 
                     "party": "Name", "mode": "CASH" | "UPI" | "UDHAR", 
                     "staff_name": "Name", "staff_role": "Role", "staff_status": "Present" | "Absent" | "Removed",
                     "reply": "Friendly confirmation"
                 }}
                 ]
                 
-                CRITICAL RULES FOR MULTIPLE ITEMS:
-                1. SEPARATE OBJECTS: If the user mentions multiple different items in one message (e.g., "2 maggie and 1 chings"), you MUST create a separate JSON object for EACH distinct item. DO NOT combine quantities or names.
-                2. PRICE DISTRIBUTION: If a total cost/price is given for the whole order (e.g., "total 200 rupees"), assign that full price to the FIRST item's object, and set "price": 0 for all subsequent items. This prevents duplicate financial entries.
-                3. SINGLE REPLY: Provide the full conversational "reply" confirmation ONLY in the first object. Set "reply": "" for all other objects.
+                CRITICAL RULES FOR MULTIPLE ITEMS & PAYMENTS:
+                1. SEPARATE OBJECTS: If the user mentions multiple different items (e.g., "4 maggie and 3 chings"), create a separate JSON object for EACH distinct item.
+                2. PRICE DISTRIBUTION: If individual prices are given (e.g., maggie 300, chings 200), assign them to their respective objects. ONLY if a single lump-sum total is given without a breakdown, assign the full price to the FIRST item and 0 to the rest.
+                3. PAYMENTS: If a user pays for a specific item (e.g., "paid for maggie"), set "item": "maggie". If they clear ALL dues (e.g., "cleared all dues", "sare udhar chuka diye"), set "item": "ALL".
+                4. SINGLE REPLY: Provide the full conversational "reply" confirmation ONLY in the first object. Set "reply": "" for all other objects.
                 
                 Context:
                 - Message Text: "{body}"
-                - "becha udhar pe" -> action: SALE, mode: UDHAR
-                - "paid his khata", "cleared dues" -> action: PAYMENT
-                - "left his job" -> action: STAFF, staff_status: "Removed"
-                - Bill Image -> Extract total items and sum.
                 """
 
         content_inputs = [prompt_text]

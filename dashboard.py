@@ -94,11 +94,11 @@ if "email" in st.query_params:
                     
                     # 3. Explicitly define the exact color mapping
                     status_colors = {
-                        "Critical (<10)": "#FF4B4B",     # Red
-                        "Low (10-29)": "#FFA500",        # Orange
-                        "Medium (30-59)": "#FFD700",     # Yellow
-                        "Healthy (60-119)": "#28A745",   # Green
-                        "Surplus (120+)": "#007BFF"      # Blue
+                        "Critical": "#FF4B4B",   # Red
+                        "Low": "#FFA500",        # Orange
+                        "Medium": "#FFD700",     # Yellow
+                        "Healthy": "#28A745",    # Green
+                        "Surplus": "#007BFF"     # Blue
                     }
                     
                     # 4. Render the Plotly chart with the discrete map and ordered legend
@@ -110,11 +110,11 @@ if "email" in st.query_params:
                         color_discrete_map=status_colors,
                         category_orders={
                             "Stock Status": [
-                                "Critical (<10)", 
-                                "Low (10-29)", 
-                                "Medium (30-59)", 
-                                "Healthy (60-119)", 
-                                "Surplus (120+)"
+                                "Critical", 
+                                "Low", 
+                                "Medium", 
+                                "Healthy", 
+                                "Surplus"
                             ]
                         }
                     )
