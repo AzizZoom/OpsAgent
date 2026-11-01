@@ -6,6 +6,8 @@ from google.oauth2.credentials import Credentials
 import json
 import database
 import warnings
+import altair as alt
+import pandas as pd
 
 # --- CLOUD CONFIGURATION ---
 warnings.filterwarnings("ignore")
@@ -70,20 +72,61 @@ if "email" in st.query_params:
     col1, col2 = st.columns(2)
 
     with col1:
-        try:
-            inv_ws = sheet.worksheet("Inventory")
-            inv_data = inv_ws.get_all_records()
-            if inv_data:
-                df_inv = pd.DataFrame(inv_data)
-                st.subheader("📦 Real-Time Inventory")
-                # Clean quantities for graphing
-                df_inv['Quantity'] = pd.to_numeric(df_inv.iloc[:, 1], errors='coerce')
-                fig_inv = px.bar(df_inv, x=df_inv.columns[0], y='Quantity', color='Quantity', color_continuous_scale='blues')
-                st.plotly_chart(fig_inv, use_container_width=True)
-            else:
-                st.info("Inventory table is empty. Send a WhatsApp message to restock!")
-        except Exception:
-            st.warning("Could not load Inventory data. Send a message to AI to generate it.")
+            try:
+                inv_ws = sheet.worksheet("Inventory")
+                inv_data = inv_ws.get_all_records()
+                if inv_data:
+                    df_inv = pd.DataFrame(inv_data)
+                    st.subheader("📦 Real-Time Inventory")
+                    
+                    # 1. Clean quantities for graphing
+                    df_inv['Quantity'] = pd.to_numeric(df_inv.iloc[:, 1], errors='coerce').fillna(0)
+                    
+                    # 2. Map absolute thresholds to business categories
+                    def get_stock_status(qty):
+                        if qty < 10: return "Critical (<10)"
+                        elif qty < 30: return "Low (10-29)"
+                        elif qty < 60: return "Medium (30-59)"
+                        elif qty < 120: return "Healthy (60-119)"
+                        else: return "Surplus (120+)"
+                    
+                    df_inv['Stock Status'] = df_inv['Quantity'].apply(get_stock_status)
+                    
+                    # 3. Explicitly define the exact color mapping
+                    status_colors = {
+                        "Critical (<10)": "#FF4B4B",     # Red
+                        "Low (10-29)": "#FFA500",        # Orange
+                        "Medium (30-59)": "#FFD700",     # Yellow
+                        "Healthy (60-119)": "#28A745",   # Green
+                        "Surplus (120+)": "#007BFF"      # Blue
+                    }
+                    
+                    # 4. Render the Plotly chart with the discrete map and ordered legend
+                    fig_inv = px.bar(
+                        df_inv, 
+                        x=df_inv.columns[0], 
+                        y='Quantity', 
+                        color='Stock Status',
+                        color_discrete_map=status_colors,
+                        category_orders={
+                            "Stock Status": [
+                                "Critical (<10)", 
+                                "Low (10-29)", 
+                                "Medium (30-59)", 
+                                "Healthy (60-119)", 
+                                "Surplus (120+)"
+                            ]
+                        }
+                    )
+                    
+                    # Clean up the axis titles for a more professional look
+                    fig_inv.update_layout(xaxis_title="Item Name", yaxis_title="Quantity (Units)")
+                    
+                    st.plotly_chart(fig_inv, use_container_width=True)
+                else:
+                    st.info("Inventory table is empty. Send a WhatsApp message to restock!")
+            except Exception:
+                st.warning("Could not load Inventory data. Send a message to AI to generate it.")
 
     with col2:
         try:
