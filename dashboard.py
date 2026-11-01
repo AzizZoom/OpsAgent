@@ -84,11 +84,11 @@ if "email" in st.query_params:
                     
                     # 2. Map absolute thresholds to business categories
                     def get_stock_status(qty):
-                        if qty < 10: return "Critical (<10)"
-                        elif qty < 30: return "Low (10-29)"
-                        elif qty < 60: return "Medium (30-59)"
-                        elif qty < 120: return "Healthy (60-119)"
-                        else: return "Surplus (120+)"
+                        if qty < 10: return "Critical"
+                        elif qty < 30: return "Low"
+                        elif qty < 60: return "Medium"
+                        elif qty < 120: return "Healthy"
+                        else: return "Surplus"
                     
                     df_inv['Stock Status'] = df_inv['Quantity'].apply(get_stock_status)
                     

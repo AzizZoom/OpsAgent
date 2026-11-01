@@ -288,25 +288,30 @@ async def reply_whatsapp(request: Request):
     try:
         # UPGRADE: AI now returns a LIST of JSON objects to handle multiple commands at once.
         prompt_text = f"""
-        Analyze this business message (or image).
-        Return STRICT JSON as an ARRAY of objects (no markdown, just the array brackets []): 
-        [
-          {{
-            "action": "SALE" | "RESTOCK" | "EXPENSE" | "STAFF" | "PAYMENT", 
-            "item": "Name", "qty": Integer, "price": Float, 
-            "party": "Name", "mode": "CASH" | "UPI" | "UDHAR", 
-            "staff_name": "Name", "staff_role": "Role (e.g. Delivery boy, Manager)", "staff_status": "Present" | "Absent" | "Removed",
-            "reply": "Friendly confirmation"
-          }}
-        ]
-        Context:
-        - Message Text: "{body}"
-        - "becha udhar pe" -> action: SALE, mode: UDHAR
-        - "paid his khata", "cleared dues" -> action: PAYMENT
-        - "left his job", "fire him", "remove him" -> action: STAFF, staff_status: "Removed"
-        - Bill Image -> Extract total items and sum.
-        - IF MULTIPLE ACTIONS OR PEOPLE ARE MENTIONED (e.g., "A and B paid"), output MULTIPLE objects in the array.
-        """
+                Analyze this business message (or image).
+                Return STRICT JSON as an ARRAY of objects (no markdown, just the array brackets []): 
+                [
+                {{
+                    "action": "SALE" | "RESTOCK" | "EXPENSE" | "STAFF" | "PAYMENT", 
+                    "item": "Name", "qty": Integer, "price": Float, 
+                    "party": "Name", "mode": "CASH" | "UPI" | "UDHAR", 
+                    "staff_name": "Name", "staff_role": "Role", "staff_status": "Present" | "Absent" | "Removed",
+                    "reply": "Friendly confirmation"
+                }}
+                ]
+                
+                CRITICAL RULES FOR MULTIPLE ITEMS:
+                1. SEPARATE OBJECTS: If the user mentions multiple different items in one message (e.g., "2 maggie and 1 chings"), you MUST create a separate JSON object for EACH distinct item. DO NOT combine quantities or names.
+                2. PRICE DISTRIBUTION: If a total cost/price is given for the whole order (e.g., "total 200 rupees"), assign that full price to the FIRST item's object, and set "price": 0 for all subsequent items. This prevents duplicate financial entries.
+                3. SINGLE REPLY: Provide the full conversational "reply" confirmation ONLY in the first object. Set "reply": "" for all other objects.
+                
+                Context:
+                - Message Text: "{body}"
+                - "becha udhar pe" -> action: SALE, mode: UDHAR
+                - "paid his khata", "cleared dues" -> action: PAYMENT
+                - "left his job" -> action: STAFF, staff_status: "Removed"
+                - Bill Image -> Extract total items and sum.
+                """
 
         content_inputs = [prompt_text]
 
@@ -358,36 +363,39 @@ async def reply_whatsapp(request: Request):
             qty = int(data.get('qty') or 1)
             price = float(data.get('price') or 0.0)
             item = data.get('item') or "Unknown Item"
+            reply_text = data.get('reply', '').strip()
 
             if action == "SALE":
                 final_name = update_inventory_stock(sheet, item, -qty)
                 sheet.worksheet("Sales").append_row([
                     final_name, qty, price, str(datetime.now().date()), data.get('mode', 'CASH'), data.get('party', 'Walk-in')
                 ])
-                if data.get('mode') == "UDHAR":
+                # Only log in Khata if price is > 0 to prevent 0-rupee ghost entries for multi-item orders
+                if data.get('mode') == "UDHAR" and price > 0:
                     sheet.worksheet("Khata").append_row([
-                        data.get('party', 'Guest'), price, item, str(datetime.now().date()), "Pending", ""
+                        data.get('party', 'Guest'), price, "Multiple Items" if len(data_list) > 1 else item, str(datetime.now().date()), "Pending", ""
                     ])
-                reply_messages.append(data.get('reply', f'Sale processed for {item}!'))
+                if reply_text: reply_messages.append(reply_text)
 
             elif action == "EXPENSE":
                 try:
                     sheet.worksheet("Ledger").append_row([
                         data.get('item', 'Misc Expense'), price, str(datetime.now().date()), "Expense"
                     ])
-                    reply_messages.append(data.get('reply', 'Expense logged!'))
+                    if reply_text: reply_messages.append(reply_text)
                 except Exception as e:
                     logger.error(f"Failed to log expense: {e}")
 
             elif action == "RESTOCK":
                 final_name = update_inventory_stock(sheet, item, qty, price)
-                sheet.worksheet("Ledger").append_row([
-                    f"Restock: {final_name}", price, str(datetime.now().date()), "Inventory"
-                ])
-                reply_messages.append(data.get('reply', 'Restock processed!'))
+                # Prevent 0-rupee ledger ghost entries
+                if price > 0:
+                    sheet.worksheet("Ledger").append_row([
+                        f"Restock: {final_name}", price, str(datetime.now().date()), "Inventory"
+                    ])
+                if reply_text: reply_messages.append(reply_text)
 
             elif action == "STAFF":
-                # Pass the role from the AI, default to General Staff
                 msg = update_staff_status(sheet, data.get('staff_name'), data.get('staff_status'), data.get('staff_role', 'General Staff'))
                 reply_messages.append(msg)
 
@@ -410,7 +418,7 @@ async def reply_whatsapp(request: Request):
                     logger.error(f"Khata Payment Error: {e}")
                     reply_messages.append("❌ Error updating Khata.")
 
-        # Combine all replies into one single WhatsApp message
+        # Combine all non-empty replies into one single WhatsApp message
         final_reply = "\n".join(reply_messages)
         
         return send_twiml(final_reply)
