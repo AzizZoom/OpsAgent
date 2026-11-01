@@ -302,9 +302,11 @@ async def reply_whatsapp(request: Request):
                 
                 CRITICAL RULES FOR MULTIPLE ITEMS & PAYMENTS:
                 1. SEPARATE OBJECTS: If the user mentions multiple different items (e.g., "4 maggie and 3 chings"), create a separate JSON object for EACH distinct item.
-                2. PRICE DISTRIBUTION: If individual prices are given (e.g., maggie 300, chings 200), assign them to their respective objects. ONLY if a single lump-sum total is given without a breakdown, assign the full price to the FIRST item and 0 to the rest.
-                3. PAYMENTS: If a user pays for a specific item (e.g., "paid for maggie"), set "item": "maggie". If they clear ALL dues (e.g., "cleared all dues", "sare udhar chuka diye"), set "item": "ALL".
-                4. SINGLE REPLY: Provide the full conversational "reply" confirmation ONLY in the first object. Set "reply": "" for all other objects.
+                2. PRICE DISTRIBUTION: 
+                - INDIVIDUAL COSTS: If exact individual prices are given (e.g., maggie 300, chings 200), assign them to their respective objects.
+                - LUMP-SUM COST: If a single total cost is given for the whole order (e.g., "total 500 rupees"), assign the FULL price to the FIRST item's object and 0 to all others.
+                3. PAYMENTS: If paying for a specific item, set "item": "maggie". If clearing ALL dues (e.g., "cleared all dues", "sare udhar"), set "item": "ALL".
+                4. SINGLE REPLY: Provide the conversational "reply" ONLY in the first object. Set "reply": "" for others.
                 
                 Context:
                 - Message Text: "{body}"
@@ -354,6 +356,10 @@ async def reply_whatsapp(request: Request):
         # We will store all our text replies here instead of returning immediately
         reply_messages = []
 
+        # UPGRADE: Detect if the current transaction is a Lump-Sum Udhar order
+        sale_udhar_items = [d for d in data_list if d.get('action') == 'SALE' and d.get('mode') == 'UDHAR']
+        is_lump_sum_udhar = len(sale_udhar_items) > 1 and sum(1 for d in sale_udhar_items if float(d.get('price') or 0) > 0) == 1
+
         # UPGRADE: Loop through every action the AI found in the message
         for data in data_list:
             action = data.get('action')
@@ -367,10 +373,12 @@ async def reply_whatsapp(request: Request):
                 sheet.worksheet("Sales").append_row([
                     final_name, qty, price, str(datetime.now().date()), data.get('mode', 'CASH'), data.get('party', 'Walk-in')
                 ])
-                # Only log in Khata if price is > 0 to prevent 0-rupee ghost entries for multi-item orders
+                
+                # Khata Logging Logic: Handle Lump-Sum vs Individual
                 if data.get('mode') == "UDHAR" and price > 0:
+                    reason_text = "Multiple Items" if is_lump_sum_udhar else item
                     sheet.worksheet("Khata").append_row([
-                        data.get('party', 'Guest'), price, "Multiple Items" if len(data_list) > 1 else item, str(datetime.now().date()), "Pending", ""
+                        data.get('party', 'Guest'), price, reason_text, str(datetime.now().date()), "Pending", ""
                     ])
                 if reply_text: reply_messages.append(reply_text)
 
@@ -385,7 +393,6 @@ async def reply_whatsapp(request: Request):
 
             elif action == "RESTOCK":
                 final_name = update_inventory_stock(sheet, item, qty, price)
-                # Prevent 0-rupee ledger ghost entries
                 if price > 0:
                     sheet.worksheet("Ledger").append_row([
                         f"Restock: {final_name}", price, str(datetime.now().date()), "Inventory"
@@ -401,16 +408,21 @@ async def reply_whatsapp(request: Request):
                     ws = sheet.worksheet("Khata")
                     rows = ws.get_all_values()
                     party_name = data.get('party', '').lower()
-                    updated = False
+                    pay_item = str(data.get('item', '')).lower()
+                    
+                    updated_count = 0
+                    
+                    # Target specific items OR clear all dues
                     for i, row in enumerate(rows[1:]):
                         if len(row) > 0 and party_name in str(row[0]).lower() and row[4] == "Pending":
-                            ws.update_cell(i + 2, 5, "Paid")
-                            updated = True
-                            break
-                    if updated:
-                        reply_messages.append(f"✅ Awesome! Marked {data.get('party')} Khata as Paid.")
+                            if pay_item in ["all", "unknown item", ""] or pay_item in str(row[2]).lower():
+                                ws.update_cell(i + 2, 5, "Paid")
+                                updated_count += 1
+                                
+                    if updated_count > 0:
+                        reply_messages.append(f"✅ Awesome! Marked {updated_count} pending Khata record(s) for {data.get('party')} as Paid.")
                     else:
-                        reply_messages.append(f"⚠️ Couldn't find a pending Khata for {data.get('party')}.")
+                        reply_messages.append(f"⚠️ Couldn't find any matching pending Khata for {data.get('party')}.")
                 except Exception as e:
                     logger.error(f"Khata Payment Error: {e}")
                     reply_messages.append("❌ Error updating Khata.")
