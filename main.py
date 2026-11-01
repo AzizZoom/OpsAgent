@@ -52,8 +52,8 @@ def setup_ai():
 
     # THE KITCHEN SINK LIST: Tests every possible valid model name
     candidates = [
-        "models/gemini-2.5-flash",         # Current recommended fast model
-        "models/gemini-2.0-flash",         # Highly efficient stable model
+        # "models/gemini-2.5-flash",         # Current recommended fast model
+        # "models/gemini-2.0-flash",         # Highly efficient stable model
         "models/gemini-1.5-flash",         # Legacy fallback
         "models/gemini-3.1-flash-lite",    # Next-gen lightweight preview
     ]
@@ -419,8 +419,11 @@ async def reply_whatsapp(request: Request):
                                 ws.update_cell(i + 2, 5, "Paid")
                                 updated_count += 1
                                 
+                    # 🌟 FIX: Guaranteed Python-generated reply (ignores AI empty strings)
                     if updated_count > 0:
-                        reply_messages.append(f"✅ Awesome! Marked {updated_count} pending Khata record(s) for {data.get('party')} as Paid.")
+                        payment_msg = f"✅ Awesome! Marked {updated_count} pending Khata record(s) for {data.get('party')} as Paid."
+                        if payment_msg not in reply_messages:  # Prevent duplicate payment messages
+                            reply_messages.append(payment_msg)
                     else:
                         reply_messages.append(f"⚠️ Couldn't find any matching pending Khata for {data.get('party')}.")
                 except Exception as e:
@@ -428,7 +431,7 @@ async def reply_whatsapp(request: Request):
                     reply_messages.append("❌ Error updating Khata.")
 
         # Combine all non-empty replies into one single WhatsApp message
-        final_reply = "\n".join(reply_messages)
+        final_reply = "\n".join([msg for msg in reply_messages if msg.strip()])
         
         return send_twiml(final_reply)
 
